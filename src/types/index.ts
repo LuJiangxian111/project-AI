@@ -15,6 +15,7 @@ export interface TokenResponse {
   user_id: string;
   email: string;
   full_name: string;
+  is_superuser?: boolean;
 }
 
 export interface Project {

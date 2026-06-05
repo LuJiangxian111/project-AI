@@ -351,6 +351,17 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// 管理员权限中间件
+function adminMiddleware(req, res, next) {
+  authMiddleware(req, res, () => {
+    const user = db.prepare('SELECT is_superuser FROM users WHERE id = ?').get(req.userId);
+    if (!user || !user.is_superuser) {
+      return res.status(403).json({ detail: '需要管理员权限' });
+    }
+    next();
+  });
+}
+
 // 辅助函数
 function parseJSON(val, defaultVal) {
   try { return JSON.parse(val || JSON.stringify(defaultVal)); } catch { return defaultVal; }
@@ -385,7 +396,7 @@ app.post('/api/v1/auth/login', (req, res) => {
       return res.status(401).json({ detail: '邮箱或密码错误' });
     }
     const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ access_token: token, token_type: 'bearer', user_id: user.id, email: user.email, full_name: user.full_name });
+    res.json({ access_token: token, token_type: 'bearer', user_id: user.id, email: user.email, full_name: user.full_name, is_superuser: !!user.is_superuser });
   } catch {
     res.status(401).json({ detail: '邮箱或密码错误' });
   }
@@ -449,7 +460,7 @@ app.post('/api/v1/auth/reset-password', (req, res) => {
 });
 
 // =========== 系统设置 API（SMTP 邮件配置等） ===========
-app.get('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
+app.get('/api/v1/system/settings/smtp', adminMiddleware, (req, res) => {
   const row = db.prepare("SELECT value FROM system_settings WHERE key = 'smtp_config'").get();
   if (row) {
     try {
@@ -463,7 +474,7 @@ app.get('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
   res.json({ configured: false });
 });
 
-app.put('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
+app.put('/api/v1/system/settings/smtp', adminMiddleware, (req, res) => {
   const { host, port, secure, user, pass } = req.body;
   if (!host || !user) {
     return res.status(400).json({ detail: 'SMTP 服务器地址和用户名不能为空' });
@@ -507,7 +518,7 @@ app.put('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
   }
 });
 
-app.delete('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
+app.delete('/api/v1/system/settings/smtp', adminMiddleware, (req, res) => {
   db.prepare("DELETE FROM system_settings WHERE key = 'smtp_config'").run();
   recreateTransporter(null);
   res.json({ message: 'SMTP 配置已清除' });

@@ -10,6 +10,14 @@ export default function SettingsPage() {
   const { user, updateUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'profile' | 'llm' | 'smtp'>('profile');
 
+  const isAdmin = user?.is_superuser === true;
+
+  const tabs = [
+    { key: 'profile' as const, label: '个人资料', icon: User },
+    { key: 'llm' as const, label: 'LLM 配置', icon: Key },
+    ...(isAdmin ? [{ key: 'smtp' as const, label: '邮件配置', icon: Mail }] : []),
+  ];
+
   // 个人信息
   const [fullName, setFullName] = useState(user?.full_name || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -117,11 +125,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex gap-2 border-b border-[#1e293b]">
-        {[
-          { key: 'profile' as const, label: '个人资料', icon: User },
-          { key: 'llm' as const, label: 'LLM 配置', icon: Key },
-          { key: 'smtp' as const, label: '邮件配置', icon: Mail },
-        ].map(tab => (
+        {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm border-b-2 transition-colors ${
               activeTab === tab.key

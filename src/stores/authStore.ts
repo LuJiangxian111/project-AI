@@ -27,7 +27,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
 
-    const { access_token, user_id, email: userEmail, full_name } = res.data;
+    const { access_token, user_id, email: userEmail, full_name, is_superuser } = res.data;
     localStorage.setItem('access_token', access_token);
 
     set({
@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email: userEmail || email,
         full_name: full_name || '',
         is_active: true,
-        is_superuser: false,
+        is_superuser: !!is_superuser,
         preferences: {},
         created_at: new Date().toISOString(),
       },
