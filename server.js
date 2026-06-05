@@ -15,15 +15,74 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET || 'project-ai-secret-key-2024';
 
-// 邮件发送器配置（支持 SMTP 环境变量，未配置时使用开发模式）
+// 邮件发送器 - 动态创建
 let transporter = null;
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
+let smtpConfig = null;
+
+// 初始化 transporter（从环境变量优先，否则从数据库读取）
+function initTransporter(dbInstance) {
+  // 优先使用环境变量
+  const envHost = process.env.SMTP_HOST;
+  const envUser = process.env.SMTP_USER;
+  const envPass = process.env.SMTP_PASS;
+  
+  if (envHost && envUser && envPass) {
+    smtpConfig = {
+      host: envHost,
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      user: envUser,
+      pass: envPass,
+    };
+    transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      auth: { user: smtpConfig.user, pass: smtpConfig.pass },
+    });
+    console.log('[SMTP] 已通过环境变量初始化邮件服务');
+    return;
+  }
+  
+  // 从数据库读取
+  try {
+    if (dbInstance) {
+      const row = dbInstance.prepare("SELECT value FROM system_settings WHERE key = 'smtp_config'").get();
+      if (row) {
+        smtpConfig = JSON.parse(row.value);
+        if (smtpConfig && smtpConfig.host && smtpConfig.user && smtpConfig.pass) {
+          transporter = nodemailer.createTransport({
+            host: smtpConfig.host,
+            port: smtpConfig.port || 587,
+            secure: smtpConfig.secure || false,
+            auth: { user: smtpConfig.user, pass: smtpConfig.pass },
+          });
+          console.log('[SMTP] 已从数据库加载邮件配置');
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[SMTP] 从数据库加载配置失败:', e.message);
+  }
+  
+  console.log('[SMTP] 邮件服务未配置，验证码将仅在控制台输出');
+}
+
+// 创建/更新 transporter
+function recreateTransporter(config) {
+  smtpConfig = config;
+  if (config && config.host && config.user && config.pass) {
+    transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port || 587,
+      secure: config.secure || false,
+      auth: { user: config.user, pass: config.pass },
+    });
+    return true;
+  }
+  transporter = null;
+  return false;
 }
 
 // 生成6位数字验证码
@@ -33,9 +92,13 @@ function generateCode() {
 
 // 发送验证码邮件
 async function sendVerificationEmail(email, code) {
-  if (transporter) {
+  if (!transporter) {
+    console.log(`[DEV] 验证码已发送到 ${email}: ${code}`);
+    return { dev: true, code };
+  }
+  try {
     await transporter.sendMail({
-      from: process.env.SMTP_USER,
+      from: smtpConfig?.user || process.env.SMTP_USER,
       to: email,
       subject: 'ProjectAI - 密码重置验证码',
       html: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0f172a;color:#e2e8f0;border-radius:12px">
@@ -45,10 +108,11 @@ async function sendVerificationEmail(email, code) {
         <p style="color:#94a3b8;font-size:14px">验证码 5 分钟内有效，请勿泄露给他人。</p>
       </div>`,
     });
+    return { dev: false };
+  } catch (e) {
+    console.error('[SMTP] 邮件发送失败:', e.message);
+    throw e;
   }
-  // 开发模式：打印到控制台
-  console.log(`[DEV] 验证码已发送到 ${email}: ${code}`);
-  return code;
 }
 
 // 数据库初始化
@@ -221,6 +285,12 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS job_marketplace (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -248,6 +318,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// 初始化邮件服务
+initTransporter(db);
 
 // 文件上传
 const storage = multer.diskStorage({
@@ -336,8 +409,12 @@ app.post('/api/v1/auth/send-reset-code', async (req, res) => {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     db.prepare('INSERT INTO verification_codes (id, email, code, expires_at) VALUES (?, ?, ?, ?)').run(uuidv4(), email, code, expiresAt);
     // 发送邮件
-    await sendVerificationEmail(email, code);
-    res.json({ message: '验证码已发送', dev_code: process.env.SMTP_HOST ? undefined : code });
+    const result = await sendVerificationEmail(email, code);
+    if (result.dev) {
+      res.json({ message: '邮件服务未配置，验证码仅在控制台输出', dev_code: result.code });
+    } else {
+      res.json({ message: '验证码已发送到您的邮箱' });
+    }
   } catch (e) {
     console.error('发送验证码失败:', e);
     res.status(500).json({ detail: '发送验证码失败，请稍后重试' });
@@ -369,6 +446,71 @@ app.post('/api/v1/auth/reset-password', (req, res) => {
     console.error('密码重置失败:', e);
     res.status(500).json({ detail: '密码重置失败' });
   }
+});
+
+// =========== 系统设置 API（SMTP 邮件配置等） ===========
+app.get('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
+  const row = db.prepare("SELECT value FROM system_settings WHERE key = 'smtp_config'").get();
+  if (row) {
+    try {
+      const config = JSON.parse(row.value);
+      // 返回配置时隐藏密码
+      return res.json({ ...config, pass: config.pass ? '******' : '', configured: true });
+    } catch {
+      return res.json({ configured: false });
+    }
+  }
+  res.json({ configured: false });
+});
+
+app.put('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
+  const { host, port, secure, user, pass } = req.body;
+  if (!host || !user) {
+    return res.status(400).json({ detail: 'SMTP 服务器地址和用户名不能为空' });
+  }
+  
+  // 如果密码是 ******，说明没改，保留原密码
+  let finalPass = pass;
+  if (pass === '******') {
+    const existing = db.prepare("SELECT value FROM system_settings WHERE key = 'smtp_config'").get();
+    if (existing) {
+      try {
+        const old = JSON.parse(existing.value);
+        finalPass = old.pass || '';
+      } catch {}
+    }
+  }
+  
+  const config = { host, port: port || 587, secure: secure || false, user, pass: finalPass };
+  
+  // 测试连接
+  try {
+    const testTransporter = nodemailer.createTransport({
+      host, port: port || 587, secure: secure || false,
+      auth: { user, pass: finalPass },
+    });
+    testTransporter.verify(async (err) => {
+      if (err) {
+        return res.status(400).json({ detail: `SMTP 连接失败: ${err.message}` });
+      }
+      
+      // 保存到数据库
+      db.prepare(`INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES ('smtp_config', ?, datetime('now'))`).run(JSON.stringify(config));
+      
+      // 更新运行时 transporter
+      recreateTransporter(config);
+      
+      res.json({ message: 'SMTP 配置已保存并验证通过', configured: true });
+    });
+  } catch (e) {
+    res.status(400).json({ detail: `SMTP 配置错误: ${e.message}` });
+  }
+});
+
+app.delete('/api/v1/system/settings/smtp', authMiddleware, (req, res) => {
+  db.prepare("DELETE FROM system_settings WHERE key = 'smtp_config'").run();
+  recreateTransporter(null);
+  res.json({ message: 'SMTP 配置已清除' });
 });
 
 // =========== 用户 API ===========

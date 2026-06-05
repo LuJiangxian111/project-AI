@@ -57,7 +57,10 @@ export default function LoginPage() {
     setSendCodeLoading(true);
     try {
       const res = await api.post('/auth/send-reset-code', { email: resetEmail });
-      setResetMsg(res.data.dev_code ? `验证码已发送（开发模式：${res.data.dev_code}）` : '验证码已发送到您的邮箱');
+      const msg = res.data.dev_code 
+        ? `邮件服务未配置，开发模式验证码：${res.data.dev_code}`
+        : (res.data.message || '验证码已发送到您的邮箱');
+      setResetMsg(msg);
       startCountdown();
     } catch (err: any) {
       setResetMsg(err?.response?.data?.detail || '发送失败');
