@@ -1095,6 +1095,138 @@ app.delete('/api/v1/marketplace/:id', authMiddleware, (req, res) => {
   res.json({ message: '已删除' });
 });
 
+// 获取单个岗位需求详情
+app.get('/api/v1/marketplace/:id', authMiddleware, (req, res) => {
+  const item = db.prepare(`SELECT jm.*, u.full_name as creator_name FROM job_marketplace jm JOIN users u ON jm.creator_id = u.id WHERE jm.id = ?`).get(req.params.id);
+  if (!item) return res.status(404).json({ detail: '岗位需求不存在' });
+  res.json(item);
+});
+
+// =========== 需求广场候选人管理（同步到招聘管理） ===========
+
+// 获取需求广场下所有候选人
+app.get('/api/v1/marketplace/:id/candidates', authMiddleware, (req, res) => {
+  const marketItem = db.prepare('SELECT * FROM job_marketplace WHERE id = ?').get(req.params.id);
+  if (!marketItem) return res.status(404).json({ detail: '岗位需求不存在' });
+
+  // 找到对应的 job_position（如果有的话）
+  const jobPos = db.prepare('SELECT * FROM job_positions WHERE project_id = ? AND title = ? AND status = ? ORDER BY created_at DESC LIMIT 1').get(marketItem.project_id, marketItem.title, 'open');
+  
+  if (!jobPos) {
+    return res.json({ candidates: [], job_position: null });
+  }
+
+  const resumes = db.prepare('SELECT * FROM resumes WHERE job_position_id = ? ORDER BY created_at DESC').all(jobPos.id);
+  const candidates = resumes.map(r => {
+    const interviews = db.prepare('SELECT * FROM interviews WHERE resume_id = ? ORDER BY scheduled_start DESC').all(r.id);
+    return {
+      ...r,
+      skills: parseJSON(r.skills, []),
+      experience: parseJSON(r.experience, []),
+      education: parseJSON(r.education, []),
+      tags: parseJSON(r.tags, []),
+      interviews,
+    };
+  });
+
+  res.json({ candidates, job_position: jobPos });
+});
+
+// 上传候选人到需求广场（同步到招聘管理）
+app.post('/api/v1/marketplace/:id/candidates', authMiddleware, upload.single('file'), (req, res) => {
+  const marketItem = db.prepare('SELECT * FROM job_marketplace WHERE id = ?').get(req.params.id);
+  if (!marketItem) return res.status(404).json({ detail: '岗位需求不存在' });
+
+  const { candidate_name, candidate_email, candidate_phone, source } = req.body;
+  if (!candidate_name || !candidate_email) {
+    return res.status(400).json({ detail: '候选人姓名和邮箱不能为空' });
+  }
+
+  // 查找或创建对应的 job_position
+  let jobPos = db.prepare("SELECT * FROM job_positions WHERE project_id = ? AND title = ? AND status = 'open' ORDER BY created_at DESC LIMIT 1").get(marketItem.project_id, marketItem.title);
+  
+  if (!jobPos) {
+    const posId = uuidv4();
+    const now = new Date().toISOString();
+    db.prepare(`INSERT INTO job_positions (id, title, description, requirements, department, location, employment_type, status, priority, target_hire_count, project_id, creator_id, posting_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      posId,
+      marketItem.title,
+      marketItem.description,
+      marketItem.requirements,
+      marketItem.department,
+      marketItem.location,
+      marketItem.employment_type,
+      'open',
+      marketItem.urgency === 'high' ? 'urgent' : 'medium',
+      marketItem.target_hire_count,
+      marketItem.project_id,
+      req.userId,
+      now,
+      now,
+      now
+    );
+    jobPos = db.prepare('SELECT * FROM job_positions WHERE id = ?').get(posId);
+  }
+
+  // 创建简历记录
+  const resumeId = uuidv4();
+  const now = new Date().toISOString();
+  db.prepare(`INSERT INTO resumes (id, candidate_name, candidate_email, candidate_phone, job_position_id, source, recruiter_id, file_path, file_name, file_size, file_type, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    resumeId,
+    candidate_name,
+    candidate_email,
+    candidate_phone || null,
+    jobPos.id,
+    source || 'marketplace',
+    req.userId,
+    req.file?.path || '',
+    req.file?.originalname || '',
+    req.file?.size || 0,
+    req.file?.mimetype || null,
+    'new',
+    now,
+    now
+  );
+
+  const resume = db.prepare('SELECT * FROM resumes WHERE id = ?').get(resumeId);
+  res.json({
+    ...resume,
+    skills: parseJSON(resume.skills, []),
+    experience: parseJSON(resume.experience, []),
+    education: parseJSON(resume.education, []),
+    tags: parseJSON(resume.tags, []),
+    job_position: jobPos,
+  });
+});
+
+// 更新候选人在需求广场的面试状态
+app.put('/api/v1/marketplace/:id/candidates/:resumeId', authMiddleware, (req, res) => {
+  const { status, rating, notes, tags } = req.body;
+  const resume = db.prepare('SELECT * FROM resumes WHERE id = ?').get(req.params.resumeId);
+  if (!resume) return res.status(404).json({ detail: '候选人不存在' });
+
+  const updates = [];
+  const params = [];
+  if (status !== undefined) { updates.push('status = ?'); params.push(status); }
+  if (rating !== undefined) { updates.push('rating = ?'); params.push(rating); }
+  if (notes !== undefined) { updates.push('notes = ?'); params.push(notes); }
+  if (tags !== undefined) { updates.push('tags = ?'); params.push(JSON.stringify(tags)); }
+  if (updates.length > 0) {
+    updates.push(`updated_at = datetime('now')`);
+    params.push(req.params.resumeId);
+    db.prepare(`UPDATE resumes SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  }
+
+  const updated = db.prepare('SELECT * FROM resumes WHERE id = ?').get(req.params.resumeId);
+  res.json({
+    ...updated,
+    skills: parseJSON(updated.skills, []),
+    experience: parseJSON(updated.experience, []),
+    education: parseJSON(updated.education, []),
+    tags: parseJSON(updated.tags, []),
+  });
+});
+
 // 健康检查
 app.get('/health', (req, res) => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();

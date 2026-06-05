@@ -14,6 +14,7 @@ import InterviewPage from './pages/InterviewPage';
 import AIAgentPage from './pages/AIAgentPage';
 import SettingsPage from './pages/SettingsPage';
 import MarketplacePage from './pages/MarketplacePage';
+import MarketplaceDetailPage from './pages/MarketplaceDetailPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = useAuthStore((s) => s.token);
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="recruitment/:id" element={<div className="text-slate-400">岗位详情 - 开发中</div>} />
           <Route path="interviews" element={<InterviewPage />} />
           <Route path="marketplace" element={<MarketplacePage />} />
+          <Route path="marketplace/:id" element={<MarketplaceDetailPage />} />
           <Route path="ai-agent" element={<AIAgentPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

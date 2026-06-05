@@ -222,7 +222,7 @@ export default function MarketplacePage() {
             const u = urgencyLabels[item.urgency] || urgencyLabels.medium;
             const progress = item.target_hire_count > 0 ? Math.round((item.current_filled / item.target_hire_count) * 100) : 0;
             return (
-              <div key={item.id} className={`bg-[#0f172a] border rounded-xl p-5 transition-colors ${item.status === 'filled' ? 'border-emerald-500/20 opacity-70' : item.urgency === 'high' ? 'border-red-500/30' : 'border-[#1e293b]'}`}>
+              <Link key={item.id} to={`/marketplace/${item.id}`} className={`bg-[#0f172a] border rounded-xl p-5 transition-colors block hover:border-[#334155] ${item.status === 'filled' ? 'border-emerald-500/20 opacity-70' : item.urgency === 'high' ? 'border-red-500/30' : 'border-[#1e293b]'}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -258,13 +258,13 @@ export default function MarketplacePage() {
                   {/* 操作按钮 */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {item.status === 'open' && (
-                      <button onClick={() => handleStatusChange(item, 'filled')} className="px-2.5 py-1.5 text-xs rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">标记已满</button>
+                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleStatusChange(item, 'filled'); }} className="px-2.5 py-1.5 text-xs rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">标记已满</button>
                     )}
-                    <button onClick={() => openEdit(item)} className="px-2.5 py-1.5 text-xs rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors">编辑</button>
-                    <button onClick={() => handleDelete(item.id)} className="px-2.5 py-1.5 text-xs rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">删除</button>
+                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEdit(item); }} className="px-2.5 py-1.5 text-xs rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 transition-colors">编辑</button>
+                    <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(item.id); }} className="px-2.5 py-1.5 text-xs rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors">删除</button>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
