@@ -64,13 +64,13 @@ export default function MarketplacePage() {
 
   const fetchData = () => {
     setLoading(true);
-    Promise.all([
-      api.get('/marketplace', { params: { status: filterStatus || undefined, urgency: filterUrgency || undefined, department: filterDept || undefined, employment_type: filterType || undefined, search: search || undefined } }),
-      api.get('/marketplace/stats'),
-    ]).then(([resItems, resStats]) => {
-      setItems(resItems.data);
-      setStats(resStats.data);
-    }).catch(() => {}).finally(() => setLoading(false));
+    api.get('/marketplace', { params: { status: filterStatus || undefined, urgency: filterUrgency || undefined, department: filterDept || undefined, employment_type: filterType || undefined, search: search || undefined } })
+      .then(res => setItems(res.data))
+      .catch(err => console.error('加载需求广场列表失败:', err));
+    api.get('/marketplace/stats')
+      .then(res => setStats(res.data))
+      .catch(err => console.error('加载统计数据失败:', err))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchData(); }, [filterUrgency, filterDept, filterType, filterStatus]);
