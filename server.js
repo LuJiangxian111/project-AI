@@ -12,7 +12,7 @@ import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = 8000;
+const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET || 'project-ai-secret-key-2024';
 
 // 邮件发送器配置（支持 SMTP 环境变量，未配置时使用开发模式）
