@@ -1,0 +1,39 @@
+# 生产环境 Dockerfile - 多阶段构建
+# 部署: docker build -f Dockerfile.prod -t project-ai . && docker run -d -p 80:80 -v $(pwd)/data:/app/data project-ai
+
+# Stage 1: 构建前端
+FROM node:20-alpine AS frontend-build
+WORKDIR /app/frontend
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: 生产运行环境
+FROM node:20-alpine
+WORKDIR /app
+
+# 安装 nginx 和 supervisor
+RUN apk add --no-cache nginx supervisor
+
+# 复制后端代码
+COPY package.json package-lock.json server.js ./
+RUN npm ci --omit=dev
+
+# 复制前端构建产物
+COPY --from=frontend-build /app/frontend/dist /app/static
+
+# 配置 Nginx
+RUN mkdir -p /run/nginx
+COPY nginx.prod.conf /etc/nginx/http.d/default.conf
+
+# 配置 Supervisor
+COPY supervisord.conf /etc/supervisord.conf
+
+# 创建必要的目录
+RUN mkdir -p /app/uploads/resumes /app/data
+
+ENV DATA_DIR=/app/data
+EXPOSE 80
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

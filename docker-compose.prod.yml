@@ -1,0 +1,27 @@
+# 生产环境 Docker Compose
+# 部署到云服务器后，运行: docker-compose -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+    volumes:
+      - app_data:/app/data
+      - app_uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=change-this-to-a-random-string
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+    restart: unless-stopped
+
+volumes:
+  app_data:
+  app_uploads:
