@@ -1040,6 +1040,7 @@ app.get('/api/v1/marketplace/stats', authMiddleware, (req, res) => {
 // 发布岗位需求
 app.post('/api/v1/marketplace', authMiddleware, (req, res) => {
   const { title, description, requirements, department, location, employment_type, urgency, target_hire_count, project_id, project_name, contact_info } = req.body;
+  console.log('发布需求:', { title, project_name, project_id });
   if (!title || !project_name) {
     return res.status(400).json({ detail: '岗位名称和项目名称不能为空' });
   }
@@ -1051,7 +1052,9 @@ app.post('/api/v1/marketplace', authMiddleware, (req, res) => {
     employment_type || 'full_time', urgency || 'medium', target_hire_count || 1, 0,
     project_id || null, project_name, req.userId, user.full_name, contact_info || null, 'open', now, now
   );
+  console.log('插入成功, id:', id);
   const item = db.prepare(`SELECT jm.*, u.full_name as creator_name FROM job_marketplace jm JOIN users u ON jm.creator_id = u.id WHERE jm.id = ?`).get(id);
+  console.log('查询结果:', item);
   res.json(item);
 });
 

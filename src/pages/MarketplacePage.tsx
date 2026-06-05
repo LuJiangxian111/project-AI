@@ -68,6 +68,8 @@ export default function MarketplacePage() {
       api.get('/marketplace', { params: { status: filterStatus || undefined, urgency: filterUrgency || undefined, department: filterDept || undefined, employment_type: filterType || undefined, search: search || undefined } }),
       api.get('/marketplace/stats'),
     ]).then(([resItems, resStats]) => {
+      console.log('API 返回列表:', resItems.data);
+      console.log('API 返回统计:', resStats.data);
       setItems(resItems.data);
       setStats(resStats.data);
     }).catch(err => console.error('加载需求广场数据失败:', err)).finally(() => setLoading(false));
@@ -103,10 +105,17 @@ export default function MarketplacePage() {
         res = await api.put(`/marketplace/${editId}`, form);
       } else {
         res = await api.post('/marketplace', form);
+        console.log('发布成功，返回:', res.data);
       }
-      console.log('发布/编辑成功:', res.data);
       setShowModal(false);
+      // 清除筛选条件
+      setFilterStatus('');
+      setFilterUrgency('');
+      setFilterDept('');
+      setFilterType('');
+      setSearch('');
       setLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 300));
       await fetchData();
     } catch (err: any) {
       console.error('操作失败:', err);
