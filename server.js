@@ -1003,38 +1003,50 @@ app.post('/api/v1/ai-agent/generate-report', authMiddleware, async (req, res) =>
 // =========== 岗位需求广场 API ===========
 // 获取广场列表（所有用户可见，不限制项目）
 app.get('/api/v1/marketplace', authMiddleware, (req, res) => {
-  const { status, urgency, department, employment_type, search } = req.query;
-  let q = `SELECT jm.*, u.full_name as creator_name 
-           FROM job_marketplace jm 
-           JOIN users u ON jm.creator_id = u.id 
-           WHERE 1=1`;
-  const params = [];
-  if (status) { q += ' AND jm.status = ?'; params.push(status); }
-  if (urgency) { q += ' AND jm.urgency = ?'; params.push(urgency); }
-  if (department) { q += ' AND jm.department = ?'; params.push(department); }
-  if (employment_type) { q += ' AND jm.employment_type = ?'; params.push(employment_type); }
-  if (search) { q += ' AND (jm.title LIKE ? OR jm.description LIKE ? OR jm.requirements LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
-  q += ' ORDER BY jm.urgency = "high" DESC, jm.created_at DESC';
-  const items = db.prepare(q).all(...params);
-  res.json(items);
+  try {
+    const { status, urgency, department, employment_type, search } = req.query;
+    let q = `SELECT jm.*, u.full_name as creator_name 
+             FROM job_marketplace jm 
+             JOIN users u ON jm.creator_id = u.id 
+             WHERE 1=1`;
+    const params = [];
+    if (status) { q += ' AND jm.status = ?'; params.push(status); }
+    if (urgency) { q += ' AND jm.urgency = ?'; params.push(urgency); }
+    if (department) { q += ' AND jm.department = ?'; params.push(department); }
+    if (employment_type) { q += ' AND jm.employment_type = ?'; params.push(employment_type); }
+    if (search) { q += ' AND (jm.title LIKE ? OR jm.description LIKE ? OR jm.requirements LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    q += ' ORDER BY jm.urgency = "high" DESC, jm.created_at DESC';
+    console.log('查询需求广场:', q, params);
+    const items = db.prepare(q).all(...params);
+    console.log('返回', items.length, '条数据');
+    res.json(items);
+  } catch (err) {
+    console.error('marketplace list error:', err.message);
+    res.status(500).json({ detail: '获取列表失败: ' + err.message });
+  }
 });
 
 // 获取广场统计
 app.get('/api/v1/marketplace/stats', authMiddleware, (req, res) => {
-  const total = db.prepare('SELECT COUNT(*) as count FROM job_marketplace').get();
-  const open = db.prepare('SELECT COUNT(*) as count FROM job_marketplace WHERE status = "open"').get();
-  const urgent = db.prepare('SELECT COUNT(*) as count FROM job_marketplace WHERE urgency = "high" AND status = "open"').get();
-  const totalPositions = db.prepare('SELECT SUM(target_hire_count) as sum FROM job_marketplace WHERE status = "open"').get();
-  const totalFilled = db.prepare('SELECT SUM(current_filled) as sum FROM job_marketplace WHERE status = "open"').get();
-  const departments = db.prepare('SELECT DISTINCT department FROM job_marketplace WHERE department IS NOT NULL AND department != ""').all().map(r => r.department);
-  res.json({
-    total: total.count,
-    open: open.count,
-    urgent: urgent.count,
-    total_positions: totalPositions.sum || 0,
-    total_filled: totalFilled.sum || 0,
-    departments,
-  });
+  try {
+    const total = db.prepare('SELECT COUNT(*) as count FROM job_marketplace').get();
+    const open = db.prepare('SELECT COUNT(*) as count FROM job_marketplace WHERE status = "open"').get();
+    const urgent = db.prepare('SELECT COUNT(*) as count FROM job_marketplace WHERE urgency = "high" AND status = "open"').get();
+    const totalPositions = db.prepare('SELECT SUM(target_hire_count) as sum FROM job_marketplace WHERE status = "open"').get();
+    const totalFilled = db.prepare('SELECT SUM(current_filled) as sum FROM job_marketplace WHERE status = "open"').get();
+    const departments = db.prepare('SELECT DISTINCT department FROM job_marketplace WHERE department IS NOT NULL AND department != ""').all().map(r => r.department);
+    res.json({
+      total: total.count,
+      open: open.count,
+      urgent: urgent.count,
+      total_positions: totalPositions.sum || 0,
+      total_filled: totalFilled.sum || 0,
+      departments,
+    });
+  } catch (err) {
+    console.error('marketplace stats error:', err.message);
+    res.status(500).json({ detail: '获取统计失败: ' + err.message });
+  }
 });
 
 // 发布岗位需求
