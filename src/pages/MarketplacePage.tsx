@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, X, Briefcase, MapPin, Users, TrendingUp, AlertTriangle, Building2, Filter, Clock, Phone, BarChart3 } from 'lucide-react';
+import { Plus, Search, X, Briefcase, MapPin, Users, TrendingUp, AlertTriangle, Building2, Filter, Clock, Phone, BarChart3, FolderKanban } from 'lucide-react';
 import api from '../api/client';
 
 interface MarketplaceItem {
@@ -21,6 +21,11 @@ interface MarketplaceItem {
   status: string;
   created_at: string;
   updated_at: string;
+}
+
+interface ProjectOption {
+  id: string;
+  name: string;
 }
 
 interface MarketplaceStats {
@@ -55,6 +60,7 @@ export default function MarketplacePage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', description: '', requirements: '', department: '', location: '', employment_type: 'full_time', urgency: 'medium', target_hire_count: 1, current_filled: 0, project_name: '', project_id: '', contact_info: '', status: 'open' });
   const [submitting, setSubmitting] = useState(false);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
 
   const fetchData = () => {
     setLoading(true);
@@ -71,9 +77,14 @@ export default function MarketplacePage() {
 
   const handleSearch = () => fetchData();
 
-  const openCreate = () => {
+  const openCreate = async () => {
     setEditId(null);
     setForm({ title: '', description: '', requirements: '', department: '', location: '', employment_type: 'full_time', urgency: 'medium', target_hire_count: 1, current_filled: 0, project_name: '', project_id: '', contact_info: '', status: 'open' });
+    // 加载项目列表
+    try {
+      const res = await api.get('/projects');
+      setProjects(res.data.map((p: any) => ({ id: p.id, name: p.name })));
+    } catch { setProjects([]); }
     setShowModal(true);
   };
 
@@ -275,9 +286,20 @@ export default function MarketplacePage() {
                     className="w-full bg-[#1e293b] border border-[#334155] rounded-lg py-2 px-3 text-white text-sm focus:border-indigo-500 focus:outline-none" placeholder="如: 高级前端工程师" required />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block">项目名称 *</label>
-                  <input type="text" value={form.project_name} onChange={e => setForm({ ...form, project_name: e.target.value })}
-                    className="w-full bg-[#1e293b] border border-[#334155] rounded-lg py-2 px-3 text-white text-sm focus:border-indigo-500 focus:outline-none" placeholder="所属项目" required />
+                  <label className="text-xs text-slate-400 mb-1 block">所属项目 *</label>
+                  <select value={form.project_id} onChange={e => {
+                    const selected = projects.find(p => p.id === e.target.value);
+                    setForm({ ...form, project_id: e.target.value, project_name: selected?.name || '' });
+                  }}
+                    className="w-full bg-[#1e293b] border border-[#334155] rounded-lg py-2 px-3 text-white text-sm focus:border-indigo-500 focus:outline-none" required>
+                    <option value="">-- 选择项目 --</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                  {projects.length === 0 && (
+                    <p className="text-xs text-amber-400 mt-1">暂无可选项目，请先在「项目管理」中创建项目</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs text-slate-400 mb-1 block">部门</label>
