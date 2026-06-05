@@ -4,6 +4,10 @@
 # Stage 1: 构建前端
 FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
+
+# better-sqlite3 需要编译工具
+RUN apk add --no-cache python3 make gcc g++
+
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
@@ -13,12 +17,15 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# 安装 nginx 和 supervisor
-RUN apk add --no-cache nginx supervisor
+# 安装 nginx、supervisor 和 better-sqlite3 编译依赖
+RUN apk add --no-cache nginx supervisor python3 make gcc g++
 
 # 复制后端代码
 COPY package.json package-lock.json server.js ./
 RUN npm ci --omit=dev
+
+# 清理编译依赖（减小镜像体积）
+RUN apk del python3 make gcc g++
 
 # 复制前端构建产物
 COPY --from=frontend-build /app/frontend/dist /app/static
