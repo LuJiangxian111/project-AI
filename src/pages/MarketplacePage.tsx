@@ -64,13 +64,13 @@ export default function MarketplacePage() {
 
   const fetchData = () => {
     setLoading(true);
-    api.get('/marketplace', { params: { status: filterStatus || undefined, urgency: filterUrgency || undefined, department: filterDept || undefined, employment_type: filterType || undefined, search: search || undefined } })
-      .then(res => setItems(res.data))
-      .catch(err => console.error('加载需求广场列表失败:', err));
-    api.get('/marketplace/stats')
-      .then(res => setStats(res.data))
-      .catch(err => console.error('加载统计数据失败:', err))
-      .finally(() => setLoading(false));
+    return Promise.all([
+      api.get('/marketplace', { params: { status: filterStatus || undefined, urgency: filterUrgency || undefined, department: filterDept || undefined, employment_type: filterType || undefined, search: search || undefined } }),
+      api.get('/marketplace/stats'),
+    ]).then(([resItems, resStats]) => {
+      setItems(resItems.data);
+      setStats(resStats.data);
+    }).catch(err => console.error('加载需求广场数据失败:', err)).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchData(); }, [filterUrgency, filterDept, filterType, filterStatus]);
@@ -98,14 +98,18 @@ export default function MarketplacePage() {
     e.preventDefault();
     setSubmitting(true);
     try {
+      let res;
       if (editId) {
-        await api.put(`/marketplace/${editId}`, form);
+        res = await api.put(`/marketplace/${editId}`, form);
       } else {
-        await api.post('/marketplace', form);
+        res = await api.post('/marketplace', form);
       }
+      console.log('发布/编辑成功:', res.data);
       setShowModal(false);
-      fetchData();
+      setLoading(true);
+      await fetchData();
     } catch (err: any) {
+      console.error('操作失败:', err);
       alert(err?.response?.data?.detail || '操作失败');
     } finally {
       setSubmitting(false);
