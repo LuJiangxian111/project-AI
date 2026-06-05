@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectListPage from './pages/ProjectListPage';
+import ProjectCreatePage from './pages/ProjectCreatePage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
 import TaskBoardPage from './pages/TaskBoardPage';
 import RecruitmentPage from './pages/RecruitmentPage';
 import InterviewPage from './pages/InterviewPage';
@@ -34,7 +36,8 @@ export default function App() {
         <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route index element={<DashboardPage />} />
           <Route path="projects" element={<ProjectListPage />} />
-          <Route path="projects/:id" element={<div className="text-slate-400">项目详情 - 开发中</div>} />
+          <Route path="projects/new" element={<ProjectCreatePage />} />
+          <Route path="projects/:id" element={<ProjectDetailPage />} />
           <Route path="tasks" element={<TaskBoardPage />} />
           <Route path="tasks/:id" element={<div className="text-slate-400">任务详情 - 开发中</div>} />
           <Route path="recruitment" element={<RecruitmentPage />} />
