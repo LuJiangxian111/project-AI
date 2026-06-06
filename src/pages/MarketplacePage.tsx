@@ -72,7 +72,11 @@ export default function MarketplacePage() {
       console.log('API 返回统计:', resStats.data);
       setItems(resItems.data);
       setStats(resStats.data);
-    }).catch(err => console.error('加载需求广场数据失败:', err)).finally(() => setLoading(false));
+    }).catch(err => {
+      console.error('加载需求广场数据失败:', err);
+      console.error('错误详情:', err?.response?.data);
+      alert('加载失败: ' + (err?.response?.data || err.message));
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchData(); }, [filterUrgency, filterDept, filterType, filterStatus]);
