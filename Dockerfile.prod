@@ -9,7 +9,7 @@ WORKDIR /app/frontend
 RUN apk add --no-cache python3 make gcc g++
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 COPY . .
 RUN npm run build
 
@@ -22,7 +22,7 @@ RUN apk add --no-cache nginx supervisor python3 make gcc g++
 
 # 复制后端代码
 COPY package.json package-lock.json server.js ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev --legacy-peer-deps
 
 # 清理编译依赖（减小镜像体积）
 RUN apk del python3 make gcc g++
